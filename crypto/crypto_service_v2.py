@@ -8,14 +8,16 @@ import schedule
 
 class crypto_service:
     tickers = []
-    curData = {}
-    targetData = {}
+    cur_data = {}
+    target_data = {}
+
+    bull_market_data = {}
 
     def __init__(self):
         self.tickers = pybithumb.get_tickers()
         self.__get_target_price_v2()
 
-    #상승장 알림
+    #상승장 알림 v1
     def bull_market_v1(ticker):
         df = pybithumb.get_ohlcv(ticker)
         ma5 = df['close'].rolling(window=5).mean()
@@ -27,9 +29,29 @@ class crypto_service:
             state = True
         else:
             state = False
-        
+    
         #장중 5일 이동평균선 가져와서 현재가격이 더 높으면 true(산다) 아니면 false(사지않는다)
         return json.dumps({ "price" : price, "last_ma5" : last_ma5, "state" : state})
+    
+    #상승장 알림 v2
+    def bull_market_v2(self):
+        while True:
+            for coin in self.tickers:
+                df = pybithumb.get_ohlcv(coin)
+                ma5 = df['close'].rolling(window=5).mean()
+                price = pybithumb.get_current_price(coin)
+                last_ma5 = ma5[-2]
+                
+                if price > last_ma5:
+                    self.bull_market_data.update({"coin": coin, "state" : True})
+                    print({"bull": True,"name": coin, "buy": True})
+            time.sleep(60 * 1)
+
+    
+    #매일 자정에 목표가 수정 배치 스레드
+    def excute_bull_market_v2_thread(self):
+        thread = threading.Thread(target=self.bull_market_v2, args=())
+        thread.start()
     
     #변동성 돌파 목표가 dictionary 만드는 함수
     def __get_target_price_v2(self):
@@ -42,7 +64,7 @@ class crypto_service:
             yesterday_high = yesterday['high']
             yesterday_low = yesterday['low']
             target = today_open + (yesterday_high - yesterday_low) * 0.5
-            self.targetData.update( {coin: target} )
+            self.target_data.update( {coin: target} )
 
     #매일 자정에 목표가 수정
     def reset_target_price(self):
@@ -68,10 +90,10 @@ class crypto_service:
         while True:
             for coin in self.tickers:
                 # 변동성 돌파를 위한 현재가 dictionary만든다
-                self.curData.update({coin : pybithumb.get_current_price(coin)})    
+                self.cur_data.update({coin : pybithumb.get_current_price(coin)})    
 
                 # 현재가가 타겟가보다 높으면 산다는 신호를 보낸다
-                if  self.curData.get(coin)  > self.targetData.get(coin):
+                if  self.cur_data.get(coin)  > self.target_data.get(coin):
                     print({"name": coin, "buy": True})
                     #TODO {"name": coin, "buy": True} request를 user_server에 보내야 한다.
             time.sleep(10)

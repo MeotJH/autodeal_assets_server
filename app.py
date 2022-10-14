@@ -12,5 +12,4 @@ def index():
 
 if __name__ == "__main__": 
     crypto_batch = crypto_batch_service()
-    crypto_batch.do_volatility_breakout()
     app.run(host='127.0.0.1', port='5001', debug=True)
